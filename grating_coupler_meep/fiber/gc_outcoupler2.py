@@ -30,9 +30,7 @@ def initialize(args):
     # a = dgrat + dgap
     a = period
 
-    # Some semi-hardcoded values
-    N = 16
-    N = N + 1
+    N = 16 + 1
     dtaper = 12
 
     dbuffer = 0.5
@@ -88,13 +86,7 @@ def initialize(args):
     # We will do x-z plane simulation
     cell_size = mp.Vector3(sxy, sz)
 
-    geometry = []
-
-    # Fiber (defined first to be overridden)
-
-    # Core
-    # fiber_offset = mp.Vector3(fiber_xposition + extrax, hSiN/2 + hair + haircore + extray) - offset_vector
-    geometry.append(
+    geometry = [
         mp.Block(
             material=Clad,
             center=mp.Vector3(x=fiber_xposition) - offset_vector,
@@ -102,7 +94,9 @@ def initialize(args):
             e1=mp.Vector3(x=1).rotate(mp.Vector3(z=1), -1 * fiber_angle),
             e2=mp.Vector3(y=1).rotate(mp.Vector3(z=1), -1 * fiber_angle),
         )
-    )
+    ]
+
+
     geometry.append(
         mp.Block(
             material=SiO2,
@@ -132,14 +126,14 @@ def initialize(args):
     )
 
     # grating etch
-    for n in range(0, N):
-        geometry.append(
-            mp.Block(
-                material=mp.air,
-                center=mp.Vector3(n * a + dgap / 2, 0) - offset_vector,
-                size=mp.Vector3(dgap, hSiN),
-            )
+    geometry.extend(
+        mp.Block(
+            material=mp.air,
+            center=mp.Vector3(n * a + dgap / 2, 0) - offset_vector,
+            size=mp.Vector3(dgap, hSiN),
         )
+        for n in range(N)
+    )
 
     geometry.append(
         mp.Block(
@@ -270,7 +264,7 @@ def main(args):
         "source": source,
     }
 
-    filename_dat = "./data/" + filename + ".pickle"
+    filename_dat = f"./data/{filename}.pickle"
 
     with open(filename_dat, "wb") as f:
         pickle.dump(

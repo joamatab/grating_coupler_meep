@@ -31,9 +31,7 @@ def initialize(args):
     # a = dgrat + dgap
     a = period
 
-    # Some semi-hardcoded values
-    N = 16
-    N = N + 1
+    N = 16 + 1
     dtaper = 12
 
     dbuffer = 0.5
@@ -66,26 +64,24 @@ def initialize(args):
     # We will do x-z plane simulation
     cell_size = mp.Vector3(sxy, sz)
 
-    geometry = []
-
-    # waveguide
-    geometry.append(
+    geometry = [
         mp.Block(
             material=SiN,
             center=mp.Vector3(0, 0) - offset_vector,
             size=mp.Vector3(mp.inf, hSiN),
         )
-    )
+    ]
+
 
     # grating etch
-    for n in range(0, N):
-        geometry.append(
-            mp.Block(
-                material=mp.air,
-                center=mp.Vector3(n * a + dgap / 2, 0) - offset_vector,
-                size=mp.Vector3(dgap, hSiN),
-            )
+    geometry.extend(
+        mp.Block(
+            material=mp.air,
+            center=mp.Vector3(n * a + dgap / 2, 0) - offset_vector,
+            size=mp.Vector3(dgap, hSiN),
         )
+        for n in range(N)
+    )
 
     geometry.append(
         mp.Block(
@@ -184,13 +180,8 @@ def main(args):
     sim, nearfield, waveguide_monitor = initialize(args)
 
     """Run simulation"""
-    if source == 1:  # Waveguide is source, monitor at fiber
-        # sim.run(until_after_sources=mp.stop_when_fields_decayed(50, mp.Ez, fiber_port_center, 1e-6))
-        sim.run(until=400)
-    else:  # Opposite
-        # sim.run(until_after_sources=mp.stop_when_fields_decayed(50, mp.Ez, waveguide_port_center, 1e-6))
-        sim.run(until=400)
-
+    # sim.run(until_after_sources=mp.stop_when_fields_decayed(50, mp.Ez, fiber_port_center, 1e-6))
+    sim.run(until=400)
     # Save raw data
     params = {
         "a": period,
@@ -227,7 +218,7 @@ def main(args):
         waveguide_monitor, [1], eig_parity=mp.ODD_Z, direction=mp.X
     )
 
-    filename_dat = "./data/" + filename + ".pickle"
+    filename_dat = f"./data/{filename}.pickle"
 
     with open(filename_dat, "wb") as f:
         pickle.dump(

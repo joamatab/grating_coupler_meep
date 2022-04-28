@@ -50,10 +50,7 @@ def to_string(value):
     if isinstance(value, list):
         settings_string_list = [to_string(i) for i in value]
         return "_".join(settings_string_list)
-    if isinstance(value, dict):
-        return dict_to_name(**value)
-    else:
-        return str(value)
+    return dict_to_name(**value) if isinstance(value, dict) else str(value)
 
 
 def fiber(
@@ -174,15 +171,14 @@ def fiber(
     # We will do x-z plane simulation
     cell_size = mp.Vector3(sxy, sz)
 
-    geometry = []
-    # clad
-    geometry.append(
+    geometry = [
         mp.Block(
             material=clad_material,
             center=mp.Vector3(0, clad_thickness / 2) - offset_vector,
             size=mp.Vector3(mp.inf, clad_thickness),
         )
-    )
+    ]
+
     # BOX
     geometry.append(
         mp.Block(
@@ -315,56 +311,57 @@ def fiber(
     if filepath_csv.exists() and not overwrite:
         return pd.read_csv(filepath_csv)
 
-    else:
-        start = time.time()
-        # Run simulation
-        # sim.run(until=400)
-        field_monitor_point = (-dtaper, 0, 0)
-        sim.run(
-            until_after_sources=mp.stop_when_fields_decayed(
-                dt=50, c=mp.Ez, pt=field_monitor_point, decay_by=decay_by
-            )
+    start = time.time()
+    # Run simulation
+    # sim.run(until=400)
+    field_monitor_point = (-dtaper, 0, 0)
+    sim.run(
+        until_after_sources=mp.stop_when_fields_decayed(
+            dt=50, c=mp.Ez, pt=field_monitor_point, decay_by=decay_by
         )
+    )
 
-        # Extract mode information
-        transmission_waveguide = sim.get_eigenmode_coefficients(
-            waveguide_monitor, [1], eig_parity=mp.ODD_Z, direction=mp.X
-        ).alpha
-        kpoint = mp.Vector3(y=-1).rotate(mp.Vector3(z=1), -1 * fiber_angle)
-        reflection_fiber = sim.get_eigenmode_coefficients(
-            fiber_monitor,
-            [1],
-            direction=mp.NO_DIRECTION,
-            eig_parity=mp.ODD_Z,
-            kpoint_func=lambda f, n: kpoint,
-        ).alpha
-        end = time.time()
+    # Extract mode information
+    transmission_waveguide = sim.get_eigenmode_coefficients(
+        waveguide_monitor, [1], eig_parity=mp.ODD_Z, direction=mp.X
+    ).alpha
+    kpoint = mp.Vector3(y=-1).rotate(mp.Vector3(z=1), -1 * fiber_angle)
+    reflection_fiber = sim.get_eigenmode_coefficients(
+        fiber_monitor,
+        [1],
+        direction=mp.NO_DIRECTION,
+        eig_parity=mp.ODD_Z,
+        kpoint_func=lambda f, n: kpoint,
+    ).alpha
+    end = time.time()
 
-        a1 = transmission_waveguide[:, :, 0].flatten()  # forward wave
-        b1 = transmission_waveguide[:, :, 1].flatten()  # backward wave
-        a2 = reflection_fiber[:, :, 0].flatten()  # forward wave
-        b2 = reflection_fiber[:, :, 1].flatten()  # backward wave
+    a1 = transmission_waveguide[:, :, 0].flatten()  # forward wave
+    b1 = transmission_waveguide[:, :, 1].flatten()  # backward wave
+    a2 = reflection_fiber[:, :, 0].flatten()  # forward wave
+    b2 = reflection_fiber[:, :, 1].flatten()  # backward wave
 
-        s11 = np.squeeze(b1 / a1)
-        s12 = np.squeeze(a2 / a1)
-        s22 = s11.copy()
-        s21 = s12.copy()
+    s11 = np.squeeze(b1 / a1)
+    s12 = np.squeeze(a2 / a1)
+    s22 = s11.copy()
+    s21 = s12.copy()
 
-        simulation = dict(
-            settings=settings,
-            compute_time_seconds=end - start,
-        )
-        filepath.write_text(omegaconf.OmegaConf.to_yaml(simulation))
+    simulation = dict(
+        settings=settings,
+        compute_time_seconds=end - start,
+    )
+    filepath.write_text(omegaconf.OmegaConf.to_yaml(simulation))
 
-        r = dict(s11=s11, s12=s12, s21=s21, s22=s22, wavelengths=wavelengths)
-        keys = [key for key in r.keys() if key.startswith("s")]
-        s = {f"{key}a": list(np.unwrap(np.angle(r[key].flatten()))) for key in keys}
-        s.update({f"{key}m": list(np.abs(r[key].flatten())) for key in keys})
-        s["wavelength"] = wavelengths
+    r = dict(s11=s11, s12=s12, s21=s21, s22=s22, wavelengths=wavelengths)
+    keys = [key for key in r if key.startswith("s")]
+    s = {
+        f"{key}a": list(np.unwrap(np.angle(r[key].flatten()))) for key in keys
+    } | {f"{key}m": list(np.abs(r[key].flatten())) for key in keys}
 
-        df = pd.DataFrame(s, index=wavelengths)
-        df.to_csv(filepath_csv, index=False)
-        return df
+    s["wavelength"] = wavelengths
+
+    df = pd.DataFrame(s, index=wavelengths)
+    df.to_csv(filepath_csv, index=False)
+    return df
 
 
 # remove silicon to clearly see the fiber (for debugging)

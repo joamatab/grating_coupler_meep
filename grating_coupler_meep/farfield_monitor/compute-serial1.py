@@ -29,8 +29,8 @@ for period in periods:
 
                     now = datetime.now()
                     dt_string = now.strftime("%d%m%Y_%H:%M:%S")
-                    filename = dt_string + "_"
-                    for param in params.keys():
+                    filename = f"{dt_string}_"
+                    for param in params:
                         filename += param
                         filename += "_"
                         filename += "{:1.4f}".format(params[param])
